@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { assignMemberAssignment, clearMemberAssignment, createDepartment, createOrganizationInvite, createSeason, revokeOrganizationInvite } from "./actions";
+import { assignMemberAssignment, clearMemberAssignment, createDepartment, createOrganizationInvite, createRecruitmentCampaign, createSeason, revokeOrganizationInvite } from "./actions";
 
 const errors: Record<string, string> = {
   "invalid-season": "راجع اسم وتواريخ الموسم.",
@@ -13,6 +13,8 @@ const errors: Record<string, string> = {
   "invalid-assignment": "راجع القسم والمسمى وتاريخ التعيين.",
   "assign-member-failed": "تعذر حفظ تعيين العضو. تأكد من الموسم النشط وتاريخ التغيير.",
   "clear-member-failed": "تعذر إنهاء تعيين العضو. تحقق من تاريخ الانتهاء.",
+  "invalid-recruitment-campaign": "راجع عنوان الحملة ووصفها وموعد الإغلاق.",
+  "create-recruitment-campaign-failed": "تعذر إنشاء الحملة. تحتاج موسمًا نشطًا وصلاحية مالك.",
 };
 
 const roleLabels: Record<string, string> = { owner: "المالك", board: "مجلس الإدارة", head: "رئيس قسم", member: "عضو" };
@@ -53,24 +55,29 @@ export default async function OrganizationPage({ params, searchParams }: PagePro
   if (departmentsResult.error) throw new Error("Failed to load departments");
   const departments = departmentsResult.data;
   const isOwner = membership.role === "owner";
-  const [directoryResult, historyResult, invitesResult] = await Promise.all([
+  const [directoryResult, historyResult, invitesResult, campaignsResult] = await Promise.all([
     supabase.rpc("list_member_directory_details", { p_organization_id: organizationId }),
     supabase.rpc("list_member_assignment_history", { p_organization_id: organizationId }),
     isOwner
       ? supabase.from("organization_invites").select("id, expires_at, accepted_at, revoked_at").eq("organization_id", organizationId).order("created_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    isOwner
+      ? supabase.rpc("list_recruitment_campaigns", { p_organization_id: organizationId })
+      : Promise.resolve({ data: [], error: null }),
   ]);
-  if (directoryResult.error || historyResult.error || invitesResult.error) throw new Error("Failed to load organization members");
+  if (directoryResult.error || historyResult.error || invitesResult.error || campaignsResult.error) throw new Error("Failed to load organization members");
   const directory = directoryResult.data as Array<{ user_id: string; display_name: string; role: string; joined_at: string; assignment_id: string | null; department_id: string | null; department_name: string | null; position: string | null; assignment_starts_on: string | null; assignment_ends_on: string | null }> | null;
   const history = historyResult.data as Array<{ user_id: string; membership_id: string; season_id: string; season_name: string; department_id: string; department_name: string; position: string; starts_on: string; ends_on: string | null }> | null;
   const historyByMember = new Map<string, NonNullable<typeof history>>();
   for (const entry of history ?? []) historyByMember.set(entry.user_id, [...(historyByMember.get(entry.user_id) ?? []), entry]);
   const invites = invitesResult.data;
+  const campaigns = campaignsResult.data as Array<{ campaign_id: string; title: string; closes_on: string; status: string; applicant_count: number }> | null;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-8 px-6 py-12">
       <Link className="text-sm text-zinc-600 underline" href="/dashboard">كل المنظمات</Link>
       <header><p className="text-sm font-semibold text-blue-700">{roleLabels[membership.role] ?? membership.role}</p><h1 className="mt-2 text-3xl font-bold">{organization.name}</h1><p className="mt-2 text-zinc-600">{organization.university}</p>{organization.description && <p className="mt-4 max-w-2xl leading-7 text-zinc-700">{organization.description}</p>}</header>
+      <Link className="min-h-11 self-start rounded-lg border border-zinc-300 px-4 py-2 font-semibold text-blue-700" href={`/organizations/${organizationId}/tasks`}>المهام</Link>
       {query.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{errors[String(query.error)] ?? "حدث خطأ. حاول مجددًا."}</p>}
 
       <section className="grid gap-4 rounded-xl border border-zinc-200 p-6">
@@ -82,6 +89,20 @@ export default async function OrganizationPage({ params, searchParams }: PagePro
           <button className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white sm:col-span-3">تفعيل موسم جديد</button>
         </form>}
       </section>
+
+      {isOwner && <section className="grid gap-4 rounded-xl border border-zinc-200 p-6">
+        <div><h2 className="text-xl font-semibold">التوظيف</h2><p className="mt-1 text-sm text-zinc-600">أنشئ رابطًا عامًا؛ الطلب يستخدم الملف الشخصي الموجود بالفعل.</p></div>
+        {activeSeason ? <form action={createRecruitmentCampaign.bind(null, organizationId)} className="grid gap-3 border-t border-zinc-200 pt-4">
+          <label className="grid gap-1 text-sm font-medium">عنوان الحملة<input name="title" minLength={2} maxLength={160} required className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2" /></label>
+          <label className="grid gap-1 text-sm font-medium">وصف الحملة<textarea name="description" minLength={20} maxLength={3000} rows={4} required className="rounded-lg border border-zinc-300 px-3 py-2" /></label>
+          <label className="grid gap-1 text-sm font-medium">آخر موعد للتقديم<input type="date" name="closes_on" min={new Date().toISOString().slice(0, 10)} max={activeSeason.ends_on} required className="min-h-11 rounded-lg border border-zinc-300 px-3 py-2" /></label>
+          <button className="min-h-11 rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white">إنشاء حملة توظيف</button>
+        </form> : <p className="text-sm text-zinc-600">فعّل موسمًا أولًا لإنشاء حملة توظيف.</p>}
+        {campaigns?.length ? <div className="grid gap-3">{campaigns.map((campaign) => {
+          const expired = campaign.status === "open" && campaign.closes_on < new Date().toISOString().slice(0, 10);
+          return <Link key={campaign.campaign_id} href={`/organizations/${organizationId}/recruitment/${campaign.campaign_id}`} className="rounded-lg bg-zinc-50 p-4 hover:bg-zinc-100"><p className="font-semibold">{campaign.title}</p><p className="mt-1 text-sm text-zinc-600">{expired ? "منتهية" : campaign.status === "open" ? "مفتوحة" : "مغلقة"} · تنتهي {formatDate(campaign.closes_on)} · {campaign.applicant_count} متقدم</p></Link>;
+        })}</div> : <p className="text-sm text-zinc-600">لا توجد حملات توظيف بعد.</p>}
+      </section>}
 
       <section className="grid gap-3"><h2 className="text-xl font-semibold">المواسم المؤرشفة</h2>{archivedSeasons.length ? archivedSeasons.map((season) => <div key={season.id} className="rounded-xl border border-zinc-200 p-4"><p className="font-semibold">{season.name}</p><p className="mt-1 text-sm text-zinc-600">{season.starts_on} — {season.ends_on}</p></div>) : <p className="text-sm text-zinc-600">لا توجد مواسم مؤرشفة.</p>}</section>
 

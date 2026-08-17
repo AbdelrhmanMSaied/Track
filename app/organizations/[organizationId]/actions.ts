@@ -98,3 +98,24 @@ export async function clearMemberAssignment(organizationId: string, formData: Fo
   if (error) redirect(`${path}?error=clear-member-failed`);
   redirect(path);
 }
+
+// Module 13 — owner creates a campaign tied to the active season.
+export async function createRecruitmentCampaign(organizationId: string, formData: FormData) {
+  const title = String(formData.get("title") ?? "").replace(/\s+/g, " ").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const closesOn = String(formData.get("closes_on") ?? "");
+  const path = `/organizations/${organizationId}`;
+  if (!uuidPattern.test(organizationId) || title.length < 2 || title.length > 160 || description.length < 20 || description.length > 3000 || !datePattern.test(closesOn)) {
+    redirect(`${path}?error=invalid-recruitment-campaign`);
+  }
+
+  const supabase = await authenticatedClient();
+  const { data: campaignId, error } = await supabase.rpc("create_recruitment_campaign", {
+    p_organization_id: organizationId,
+    p_title: title,
+    p_description: description,
+    p_closes_on: closesOn,
+  });
+  if (error || !campaignId) redirect(`${path}?error=create-recruitment-campaign-failed`);
+  redirect(`${path}/recruitment/${campaignId}`);
+}
