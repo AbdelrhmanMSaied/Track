@@ -26,7 +26,7 @@ export default async function DashboardPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-6 py-12">
       <p className="text-sm font-semibold text-blue-700">Track</p>
-      <h1 className="text-3xl font-bold">مرحبًا {profile.full_name}</h1>
+      <div className="flex items-center justify-between gap-4"><h1 className="text-3xl font-bold">مرحبًا {profile.full_name}</h1><Link href="/profile/edit" className="text-sm font-semibold text-blue-700">تعديل الملف الشخصي</Link></div>
       <section className="grid gap-3">
         <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold">منظماتك</h2><Link className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white" href="/organizations/new">منظمة جديدة</Link></div>
         {organizations?.length ? organizations.map((organization) => (
