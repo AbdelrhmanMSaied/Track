@@ -134,6 +134,8 @@ Straight assessment: the PRD is a strong **product** spec. It is not, by itself,
 
 Current Module 1 slice covers email/password and Google authentication, profiles, organizations, memberships, and tenant isolation. Multiple emails, invitation linking, duplicate detection, and account merging remain later Module 1 slices.
 
+Module 11 currently covers the Seasons + flat Departments slice only. Vision, mission, values, social links, department leaders, hierarchy, organization chart, global calendar, and workspace/subscription status remain later Module 11 slices.
+
 ## 9. Suggested Immediate Next Step
 
 Apply and verify the Module 1 foundation migration against a local or linked Supabase project, then complete the first authenticated profile flow before expanding into later modules.
