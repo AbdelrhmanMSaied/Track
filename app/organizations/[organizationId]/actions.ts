@@ -11,6 +11,9 @@ async function authenticatedClient() {
   return supabase;
 }
 
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function createSeason(organizationId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const startsOn = String(formData.get("starts_on") ?? "");
@@ -49,7 +52,7 @@ export async function createOrganizationInvite(organizationId: string) {
 export async function revokeOrganizationInvite(organizationId: string, formData: FormData) {
   const inviteId = String(formData.get("invite_id") ?? "");
   const path = `/organizations/${organizationId}`;
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(inviteId)) redirect(`${path}?error=revoke-invite-failed`);
+  if (!uuidPattern.test(inviteId)) redirect(`${path}?error=revoke-invite-failed`);
   const supabase = await authenticatedClient();
   const { data, error } = await supabase
     .from("organization_invites")
@@ -59,5 +62,39 @@ export async function revokeOrganizationInvite(organizationId: string, formData:
     .select("id")
     .maybeSingle();
   if (error || !data) redirect(`${path}?error=revoke-invite-failed`);
+  redirect(path);
+}
+
+export async function assignMemberAssignment(organizationId: string, formData: FormData) {
+  const userId = String(formData.get("user_id") ?? "");
+  const departmentId = String(formData.get("department_id") ?? "");
+  const position = String(formData.get("position") ?? "").replace(/\s+/g, " ").trim();
+  const startsOn = String(formData.get("starts_on") ?? "");
+  const path = `/organizations/${organizationId}`;
+  if (!uuidPattern.test(userId) || !uuidPattern.test(departmentId) || position.length < 2 || position.length > 120 || !datePattern.test(startsOn)) redirect(`${path}?error=invalid-assignment`);
+  const supabase = await authenticatedClient();
+  const { error } = await supabase.rpc("assign_member_assignment", {
+    p_organization_id: organizationId,
+    p_user_id: userId,
+    p_department_id: departmentId,
+    p_position: position,
+    p_starts_on: startsOn,
+  });
+  if (error) redirect(`${path}?error=assign-member-failed`);
+  redirect(path);
+}
+
+export async function clearMemberAssignment(organizationId: string, formData: FormData) {
+  const userId = String(formData.get("user_id") ?? "");
+  const endsOn = String(formData.get("ends_on") ?? "");
+  const path = `/organizations/${organizationId}`;
+  if (!uuidPattern.test(userId) || !datePattern.test(endsOn)) redirect(`${path}?error=invalid-assignment`);
+  const supabase = await authenticatedClient();
+  const { error } = await supabase.rpc("clear_member_assignment", {
+    p_organization_id: organizationId,
+    p_user_id: userId,
+    p_ends_on: endsOn,
+  });
+  if (error) redirect(`${path}?error=clear-member-failed`);
   redirect(path);
 }

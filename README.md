@@ -138,7 +138,9 @@ Module 11 currently covers the Seasons + flat Departments slice only. Vision, mi
 
 ### Reviewed SECURITY DEFINER exceptions
 
-Module 12 intentionally exposes two authenticated-only `SECURITY DEFINER` RPCs: `accept_organization_invite` for atomic one-use invite acceptance, and `list_member_directory` for a privacy-safe name-only directory without widening profile RLS. Both revoke anonymous/public execution, validate `auth.uid()`, enforce active organization membership where applicable, use an empty `search_path`, and fully qualify database objects. Supabase Advisors reports these intentional authenticated-callable functions as warnings; changing them to `SECURITY INVOKER` would require broader table/profile grants.
+Module 12 intentionally exposes authenticated-only `SECURITY DEFINER` RPCs for atomic invite acceptance, organization bootstrap, season transition, and membership assignment history. `accept_organization_invite`, `create_organization`, `activate_season`, `assign_member_assignment`, and `clear_member_assignment` centralize writes that must not be split across client requests; the directory and assignment-history RPCs return only privacy-safe fields. The history RPC lets an owner read active members' histories and a non-owner read only their own. A private trigger validates every assignment writer against its referenced season, and an exclusion constraint prevents overlapping effective-date ranges. Every exception revokes anonymous/public execution, validates `auth.uid()`, validates the caller's active owner/member scope where applicable, uses an empty `search_path`, and fully qualifies database objects. Supabase Advisors may report these intentional authenticated-callable functions as warnings; changing them to `SECURITY INVOKER` would require broader table/profile grants.
+
+This Module 12 slice covers active-member assignment and retained history only. Alumni lifecycle and owner-facing alumni history remain deferred to the membership-status slice; this is not a claim that all Module 12 acceptance criteria are complete.
 
 ## 9. Suggested Immediate Next Step
 
