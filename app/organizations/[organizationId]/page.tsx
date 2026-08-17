@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createDepartment, createSeason } from "./actions";
+import { createDepartment, createOrganizationInvite, createSeason, revokeOrganizationInvite } from "./actions";
 
 const errors: Record<string, string> = {
   "invalid-season": "راجع اسم وتواريخ الموسم.",
   "create-season-failed": "تعذر إنشاء الموسم. تأكد من صلاحياتك وحاول مجددًا.",
   "invalid-department": "راجع بيانات القسم.",
   "create-department-failed": "تعذر إنشاء القسم. قد يكون الاسم مستخدمًا في هذا الموسم.",
+  "create-invite-failed": "تعذر إنشاء رابط الدعوة. تأكد من صلاحياتك وحاول مجددًا.",
+  "revoke-invite-failed": "تعذر إلغاء رابط الدعوة.",
 };
 
 export default async function OrganizationPage({ params, searchParams }: PageProps<"/organizations/[organizationId]">) {
@@ -36,6 +38,15 @@ export default async function OrganizationPage({ params, searchParams }: PagePro
   if (departmentsResult.error) throw new Error("Failed to load departments");
   const departments = departmentsResult.data;
   const isOwner = membership.role === "owner";
+  const [directoryResult, invitesResult] = await Promise.all([
+    supabase.rpc("list_member_directory", { p_organization_id: organizationId }),
+    isOwner
+      ? supabase.from("organization_invites").select("id, expires_at, accepted_at, revoked_at").eq("organization_id", organizationId).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (directoryResult.error || invitesResult.error) throw new Error("Failed to load organization members");
+  const directory = directoryResult.data as Array<{ user_id: string; display_name: string; role: string; joined_at: string }> | null;
+  const invites = invitesResult.data;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-8 px-6 py-12">
@@ -65,6 +76,17 @@ export default async function OrganizationPage({ params, searchParams }: PagePro
           <button className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white">إضافة القسم</button>
         </form>}
       </section>
+
+      <section className="grid gap-4 rounded-xl border border-zinc-200 p-6">
+        <div><h2 className="text-xl font-semibold">الأعضاء</h2><p className="mt-1 text-sm text-zinc-600">الأعضاء النشطون في المنظمة.</p></div>
+        {directory?.map((member) => <div key={member.user_id} className="rounded-lg bg-zinc-50 p-4"><p className="font-semibold">{member.display_name}</p><p className="mt-1 text-sm text-zinc-600">{member.role} · انضم في {new Date(member.joined_at).toLocaleDateString("ar-EG")}</p></div>)}
+      </section>
+
+      {isOwner && <section className="grid gap-4 rounded-xl border border-zinc-200 p-6">
+        <div><h2 className="text-xl font-semibold">دعوات الأعضاء</h2><p className="mt-1 text-sm text-zinc-600">كل رابط صالح لمدة 72 ساعة ويُستخدم مرة واحدة.</p></div>
+        <form action={createOrganizationInvite.bind(null, organizationId)}><button className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white">إنشاء رابط دعوة</button></form>
+        {invites?.length ? <div className="grid gap-3">{invites.map((invite) => <div key={invite.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-zinc-50 p-4"><p className="text-sm text-zinc-600">ينتهي في {new Date(invite.expires_at).toLocaleString("ar-EG")}{invite.accepted_at ? " · مستخدم" : invite.revoked_at ? " · ملغي" : " · صالح"}</p>{!invite.accepted_at && !invite.revoked_at && <form action={revokeOrganizationInvite.bind(null, organizationId)}><input type="hidden" name="invite_id" value={invite.id} /><button className="text-sm font-semibold text-red-700 underline">إلغاء</button></form>}</div>)}</div> : <p className="text-sm text-zinc-600">لا توجد دعوات بعد.</p>}
+      </section>}
     </main>
   );
 }

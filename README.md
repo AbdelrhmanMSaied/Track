@@ -136,6 +136,10 @@ Current Module 1 slice covers email/password and Google authentication, profiles
 
 Module 11 currently covers the Seasons + flat Departments slice only. Vision, mission, values, social links, department leaders, hierarchy, organization chart, global calendar, and workspace/subscription status remain later Module 11 slices.
 
+### Reviewed SECURITY DEFINER exceptions
+
+Module 12 intentionally exposes two authenticated-only `SECURITY DEFINER` RPCs: `accept_organization_invite` for atomic one-use invite acceptance, and `list_member_directory` for a privacy-safe name-only directory without widening profile RLS. Both revoke anonymous/public execution, validate `auth.uid()`, enforce active organization membership where applicable, use an empty `search_path`, and fully qualify database objects. Supabase Advisors reports these intentional authenticated-callable functions as warnings; changing them to `SECURITY INVOKER` would require broader table/profile grants.
+
 ## 9. Suggested Immediate Next Step
 
 Apply and verify the Module 1 foundation migration against a local or linked Supabase project, then complete the first authenticated profile flow before expanding into later modules.

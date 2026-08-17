@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash, randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,5 +32,32 @@ export async function createDepartment(organizationId: string, formData: FormDat
   const supabase = await authenticatedClient();
   const { error } = await supabase.from("departments").insert({ organization_id: organizationId, season_id: seasonId, name, description: description || null });
   if (error) redirect(`${path}?error=create-department-failed`);
+  redirect(path);
+}
+
+export async function createOrganizationInvite(organizationId: string) {
+  const path = `/organizations/${organizationId}`;
+  const supabase = await authenticatedClient();
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const { error } = await supabase.from("organization_invites").insert({ organization_id: organizationId, token_hash: tokenHash });
+  if (error) redirect(`${path}?error=create-invite-failed`);
+
+  redirect(`/invites/${token}?share=1`);
+}
+
+export async function revokeOrganizationInvite(organizationId: string, formData: FormData) {
+  const inviteId = String(formData.get("invite_id") ?? "");
+  const path = `/organizations/${organizationId}`;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(inviteId)) redirect(`${path}?error=revoke-invite-failed`);
+  const supabase = await authenticatedClient();
+  const { data, error } = await supabase
+    .from("organization_invites")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("id", inviteId)
+    .eq("organization_id", organizationId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) redirect(`${path}?error=revoke-invite-failed`);
   redirect(path);
 }
