@@ -77,7 +77,7 @@ export default async function OrganizationPage({ params, searchParams }: PagePro
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-8 px-6 py-12">
       <Link className="text-sm text-zinc-600 underline" href="/dashboard">كل المنظمات</Link>
       <header><p className="text-sm font-semibold text-blue-700">{roleLabels[membership.role] ?? membership.role}</p><h1 className="mt-2 text-3xl font-bold">{organization.name}</h1><p className="mt-2 text-zinc-600">{organization.university}</p>{organization.description && <p className="mt-4 max-w-2xl leading-7 text-zinc-700">{organization.description}</p>}</header>
-      <Link className="min-h-11 self-start rounded-lg border border-zinc-300 px-4 py-2 font-semibold text-blue-700" href={`/organizations/${organizationId}/tasks`}>المهام</Link>
+      <div className="flex flex-wrap gap-3"><Link className="min-h-11 self-start rounded-lg border border-zinc-300 px-4 py-2 font-semibold text-blue-700" href={`/organizations/${organizationId}/tasks`}>المهام</Link>{isOwner && <Link className="min-h-11 self-start rounded-lg border border-zinc-300 px-4 py-2 font-semibold text-blue-700" href={`/organizations/${organizationId}/verifications`}>طلبات التوثيق</Link>}</div>
       {query.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{errors[String(query.error)] ?? "حدث خطأ. حاول مجددًا."}</p>}
 
       <section className="grid gap-4 rounded-xl border border-zinc-200 p-6">
